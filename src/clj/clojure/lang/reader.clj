@@ -2,8 +2,12 @@
 
 (defstruct <line> :line :content)
 
+(def *black-hole* (proxy [clojure.lang.APersistentVector] []
+                    (cons [obj] this)
+                    (count [] 0)))
+
 ; (def *skip* (new [] (toString [] "Object ignored by reader"))) 
-(def #^{:private true} *skip* (Object.))
+(def #^{:private true} *skip* (Object. ) )
 
 (def *non-token-chars* (set (seq "()[]{}\\\"")))
 
@@ -27,12 +31,13 @@
      (when (first lines)
        (let [c (count (:content (first lines)))
              new-off (+ offset n)]
-         (if (>= new-off c)
-           (recur [0 (rest lines)] (- new-off c))
-           [new-off lines])))))
+         (cond
+           (zero? c) [0 (rest lines)]
+           (>= new-off c) (recur [0 (rest lines)] (- new-off c))
+           :else [new-off lines])))))
   
 (defn- get-char [[offset lines]]
-  (when (first lines)
+  (when (and (first lines) (not (empty? (:content (first lines)))))
     (.charAt (:content (first lines)) offset)))
 
 (defn- get-position [[offset lines]]
@@ -57,9 +62,10 @@
          \` ::syntax-quote
          \~ ::unquote
          \# ::macro-prefix
-         \\ ::character}]
+         \\ ::character
+         \; ::line-comment}]
     (cond 
-      (nil? c)        ::eof
+      (nil? c)        ::skip
       (whitespace? c) ::skip
       :else           (dispatch c ::token))))      
 
@@ -72,13 +78,14 @@
              (let [[item rh] (consume rh)]
                (cons item (item-seq rh)))))))
 
-;;; Prefix macro dispatch
+; Prefix macro dispatch
 
 (defn prefix-dispatch [rh]
   (let [dispatch-table
         {\' ::var
          \{ ::open-set
-         \^ ::type-hint}]
+         \^ ::metadata
+         \( ::fn-shortcut}]
     (dispatch-table (get-char (advance rh)) ::eof)))
 
 (defmulti handle-prefix-macro prefix-dispatch)
@@ -123,7 +130,7 @@
                      #(apply hash-map %)))
 
 (defmethod handle-prefix-macro ::open-set [rh]
-  (consume-delimited (advance rh)
+  (consume-delimited (advance rh 2)
                      #(= \} %)
                      #{}
                      identity))
@@ -210,12 +217,25 @@
 
 
 ;; TODO
-(defmethod handle-prefix-macro ::type-hint [rh]
-  (let [[_ rh] (consume-token (advance rh 2))]
-    (loop [[item rh] (consume rh)]
+
+(defmethod handle-prefix-macro ::fn-shortcut [rh]
+  (consume-and-wrap (advance rh) 'FN)) 
+
+(defmethod handle-prefix-macro ::metadata [rh]
+  (let [[_ rh] (if (= \{ (get-char (advance rh 2)))
+                 (consume-delimited (advance rh 3)
+                                    #(= \} %)
+                                    *black-hole*
+                                    identity)
+                 (consume-token (advance rh 2)))]
+    (loop [[item nrh] (consume rh)]
       (if (identical? *skip* item) 
-        (recur (consume rh))
-        [item rh]))))
+        (recur (consume nrh))
+        [item nrh]))))
+
+(defmethod consume ::line-comment [rh]
+  (let [[_ lines] rh]
+    (consume [0 (rest lines)])))
 
 ;; not quite ok...
 (defmethod consume ::character [rh]
@@ -225,5 +245,7 @@
   [*skip* (advance rh)])
 
 (defmethod consume ::eof [rh] 
-  ['*EOF* rh])
+  [rh nil])
 
+(defmethod handle-prefix-macro ::eof [rh]
+  [rh nil])

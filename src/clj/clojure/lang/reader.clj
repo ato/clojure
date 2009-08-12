@@ -108,7 +108,7 @@
 
 (defmethod consume ::unexpected-closing [rh]
   (let [[offset line] (get-position rh)]
-    (reader-error "Unexpected closing character %s (line %s, character %s)" 
+    (reader-error "Unexpected closing character %s (line %s, column %s)" 
                   (get-char rh) line (inc offset))))
 
 (defmethod consume ::open-list [rh]
@@ -150,7 +150,7 @@
         [offset line] (get-position rh)]
     (if-let [escaped (quotable ch)]
       escaped
-      (reader-error "Unsupported escape character: \\%s (line %s, character %s)" 
+      (reader-error "Unsupported escape character: \\%s (line %s, column %s)" 
                     ch line offset))))
     
 (defmethod consume ::string [rh]
@@ -196,25 +196,83 @@
  
 ;;; Token handling
 
+(def +int-pattern+ #"([-+]?)(?:(0)|([1-9][0-9]*)|0[xX]([0-9A-Fa-f]+)|0([0-7]+)|([1-9][0-9]?)[rR]([0-9A-Za-z]+)|0[0-9]+)")
+(def +float-pattern+ #"([-+]?[0-9]+(\\.[0-9]*)?([eE][-+]?[0-9]+)?)(M)?")
+(def +ratio-pattern+ #"([-+]?[0-9]+)/([0-9]+)")
+
+(defn- select-radix [[dec-m hex-m oct-m custom-radix other-m]]
+  (cond 
+    dec-m [dec-m 10]
+    hex-m [hex-m 16]
+    oct-m [oct-m 8]
+    other-m [other-m (Integer/parseInt custom-radix)]
+    :else [nil nil]))
+
+(defn int-handler [[_ sign zero & radix-info]]
+  (if zero
+    0
+    (let [negate    (= sign "-")
+          [s radix] (select-radix radix-info)]
+      (when s
+        (let [bn (BigInteger. s radix)]
+          (clojure.lang.Numbers/reduce (if negate (.negate bn) bn)))))))
+
+(defn float-handler [m])
+(defn ratio-handler [m])
+
+(def +number-patterns+ 
+     {+int-pattern+ int-handler,
+      +float-pattern+ float-handler,
+      +ratio-pattern+ ratio-handler})
+
+(defn- match-against [pattern string match-handler]
+  (let [m (re-matcher pattern string)
+        matches? (.matches m)]
+    (if matches?
+      (match-handler (re-groups m))
+      :no-match)))
+
+(defn- parse-number [string]
+  (let [possible-matches 
+        (for [[pat handler] +number-patterns+]
+          (match-against pat string handler))]
+    (first (remove (partial identical? :no-match) 
+                   possible-matches))))
+
+(defn digit? [ch]
+  (Character/isDigit ch))
+
+(defn- possible-number? [string]
+  (or 
+   (and (> (count string) 1) (#{\+, \-} (first string)) (digit? (second string)))
+   (digit? (first string))))
+
 (defn- parse-token [rh string]
   (let [[offset line] (get-position rh)]
     (condp = string
-      "" (reader-error "Expected token, got nothing. (line %s, character %s)" line offset)
+      "" (reader-error "Expected token, got nothing. (line %s, column %s)" line offset)
       "nil" nil
       "true" true
       "false" false
-      (symbol string))))
+      (cond 
+        (possible-number? string) (if-let [n (parse-number string)]
+                                    n
+                                    (reader-error "Invalid number: %s (line %s, column %s)" string line offset))
+        :else (symbol string)))))
 
-(defn consume-token [rh]
-  (loop [acc [] h rh]
-    (let [c (get-char h)]
+(defn- consume-token-string [rh]
+  (loop [acc [] rh rh]
+    (let [c (get-char rh)]
       (if (and c (not (breaks-token? c)))
-        (recur (conj acc c) (advance h))
-        [(parse-token h (apply str acc)) h])))) 
+        (recur (conj acc c) (advance rh))
+        [(apply str acc) rh]))))
+   
+(defn consume-token [rh]
+  (let [[token-str nrh] (consume-token-string rh)]
+    [(parse-token rh token-str) nrh]))
 
 (defmethod consume ::token [rh]
   (consume-token rh))
-
 
 ;; TODO
 

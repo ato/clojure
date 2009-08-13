@@ -197,7 +197,7 @@
 ;;; Token handling
 
 (def +int-pattern+ #"([-+]?)(?:(0)|([1-9][0-9]*)|0[xX]([0-9A-Fa-f]+)|0([0-7]+)|([1-9][0-9]?)[rR]([0-9A-Za-z]+)|0[0-9]+)")
-(def +float-pattern+ #"([-+]?[0-9]+(\\.[0-9]*)?([eE][-+]?[0-9]+)?)(M)?")
+(def +float-pattern+ #"([-+]?[0-9]+(\.[0-9]*)?([eE][-+]?[0-9]+)?)(M)?")
 (def +ratio-pattern+ #"([-+]?[0-9]+)/([0-9]+)")
 
 (defn- select-radix [[dec-m hex-m oct-m custom-radix other-m]]
@@ -208,7 +208,7 @@
     other-m [other-m (Integer/parseInt custom-radix)]
     :else [nil nil]))
 
-(defn int-handler [[_ sign zero & radix-info]]
+(defn- int-handler [[_ sign zero & radix-info]]
   (if zero
     0
     (let [negate    (= sign "-")
@@ -217,8 +217,14 @@
         (let [bn (BigInteger. s radix)]
           (clojure.lang.Numbers/reduce (if negate (.negate bn) bn)))))))
 
-(defn float-handler [m])
-(defn ratio-handler [m])
+(defn- float-handler [[s bigval _ _ bigdec?]]
+  (if bigdec?
+    (BigDecimal. bigval)
+    (Double/parseDouble s)))
+
+(defn- ratio-handler [[_ numerator denominator]]
+  (clojure.lang.Numbers/divide (BigInteger. numerator) 
+                               (BigInteger. denominator)))
 
 (def +number-patterns+ 
      {+int-pattern+ int-handler,
@@ -226,10 +232,9 @@
       +ratio-pattern+ ratio-handler})
 
 (defn- match-against [pattern string match-handler]
-  (let [m (re-matcher pattern string)
-        matches? (.matches m)]
+  (let [[matches? & parts :as match] (re-matches pattern string)]
     (if matches?
-      (match-handler (re-groups m))
+      (match-handler match)
       :no-match)))
 
 (defn- parse-number [string]
@@ -239,7 +244,7 @@
     (first (remove (partial identical? :no-match) 
                    possible-matches))))
 
-(defn digit? [ch]
+(defn- digit? [ch]
   (Character/isDigit ch))
 
 (defn- possible-number? [string]
@@ -267,7 +272,7 @@
         (recur (conj acc c) (advance rh))
         [(apply str acc) rh]))))
    
-(defn consume-token [rh]
+(defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]
     [(parse-token rh token-str) nrh]))
 

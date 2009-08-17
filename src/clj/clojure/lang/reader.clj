@@ -35,7 +35,11 @@
            ;(zero? c) [0 (rest lines)]
            (> new-off c) (recur [0 (rest lines)] (- (dec new-off) c))
            :else [new-off lines])))))
-  
+
+(defn- get-line [[offset lines]]
+  (if-let [line (first lines)]
+    (:line line)))
+
 (defn- get-char [[offset lines]]
   (let [line (first lines) 
         content (:content line)]
@@ -47,6 +51,16 @@
 
 (defn- get-position [[offset lines]]
   [offset (or (:line (first lines)) 'N/A)])
+
+(defn- maybe-with-meta [rh object meta-map & [do-error?]]
+  (cond 
+    (instance? clojure.lang.IMeta object)
+    (with-meta object (merge (meta object) meta-map))
+    do-error? (reader-error "Cannot attach metadata to %s (line %s)" (class object) (get-line rh))
+    :else object))
+
+(defn- attach-line-meta [rh object]
+  (maybe-with-meta rh object {:line (get-line rh)}))
 
 (defn consumer-dispatch [rh]
   (let [c (get-char rh)
@@ -281,7 +295,7 @@
    
 (defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]
-    [(parse-token rh token-str) nrh]))
+    [(attach-line-meta nrh (parse-token rh token-str)) nrh]))
 
 (defmethod consume ::token [rh]
   (consume-token rh))

@@ -32,13 +32,18 @@
        (let [c (count (:content (first lines)))
              new-off (+ offset n)]
          (cond
-           (zero? c) [0 (rest lines)]
-           (>= new-off c) (recur [0 (rest lines)] (- new-off c))
+           ;(zero? c) [0 (rest lines)]
+           (> new-off c) (recur [0 (rest lines)] (- (dec new-off) c))
            :else [new-off lines])))))
   
 (defn- get-char [[offset lines]]
-  (when (and (first lines) (not (empty? (:content (first lines)))))
-    (.charAt (:content (first lines)) offset)))
+  (let [line (first lines) 
+        content (:content line)]
+    (when line 
+      (if (or (empty? content) 
+              (== offset (count content)))
+        \newline
+        (.charAt content offset)))))
 
 (defn- get-position [[offset lines]]
   [offset (or (:line (first lines)) 'N/A)])

@@ -329,16 +329,16 @@
   (consume-and-wrap (advance rh) 'FN)) 
 
 (defmethod handle-prefix-macro ::metadata [rh]
-  (let [[_ rh] (if (= \{ (get-char (advance rh 2)))
+  (let [[the-meta rh] (if (= \{ (get-char (advance rh 2)))
                  (consume-delimited (advance rh 3)
                                     #(= \} %)
-                                    *black-hole*
-                                    identity)
+                                    []
+                                    #(apply hash-map %))
                  (consume-token (advance rh 2)))]
     (loop [[item nrh] (consume rh)]
-      (if (identical? *skip* item) 
-        (recur (consume nrh))
-        [item nrh]))))
+      (cond 
+        (identical? *skip* item)  (recur (consume nrh))
+        (map? the-meta) [(maybe-with-meta nrh item the-meta :error-if-not-imeta) nrh]))))
 
 (defmethod consume ::line-comment [rh]
   (let [[_ lines] rh]

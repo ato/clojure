@@ -68,6 +68,7 @@
          \~ ::unquote
          \# ::macro-prefix
          \\ ::character
+         \: ::keyword
          \; ::line-comment}]
     (cond 
       (nil? c)        ::skip
@@ -284,6 +285,14 @@
 
 (defmethod consume ::token [rh]
   (consume-token rh))
+
+(defmethod consume ::keyword [rh]
+  (let [nc (get-char (advance rh))
+        [rh autoqual?] (if (= nc \:) [(advance rh) true] [rh false]) 
+        [token-str nrh] (consume-token-string (advance rh))]
+    (if autoqual?
+      [(keyword (str *ns*) token-str) nrh]
+      [(keyword token-str) nrh])))
 
 ;; TODO
 

@@ -85,6 +85,7 @@
         {\' ::var
          \{ ::open-set
          \^ ::metadata
+         \" ::regex-pattern
          \( ::fn-shortcut}]
     (dispatch-table (get-char (advance rh)) ::eof)))
 
@@ -280,6 +281,21 @@
   (consume-token rh))
 
 ;; TODO
+
+(defmethod handle-prefix-macro ::regex-pattern [rh]
+  (let [sb (new java.lang.StringBuilder)]
+    (loop [rh (advance rh 2)]
+      (let [ch (get-char rh)
+            new-rh (advance rh)]
+        (cond 
+          (and (= ch \\) (= (get-char new-rh) \"))
+          (do (.append sb \")
+              (recur (advance new-rh)))
+          (= ch \") 
+          [(java.util.regex.Pattern/compile (str sb)) new-rh]
+          :else 
+          (do (.append sb ch)
+              (recur new-rh)))))))
 
 (defmethod handle-prefix-macro ::fn-shortcut [rh]
   (consume-and-wrap (advance rh) 'FN)) 

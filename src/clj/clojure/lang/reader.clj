@@ -107,6 +107,8 @@
          \{ ::open-set
          \^ ::metadata
          \" ::regex-pattern
+         \< ::fail-reader
+         \= ::reader-eval
          \( ::fn-shortcut}]
     (dispatch-table (get-char (advance rh)) ::eof)))
 
@@ -156,6 +158,18 @@
                      #(= \} %)
                      #{}
                      identity))
+
+;;; Other delimited things
+(defmethod handle-prefix-macro ::fail-reader [rh]
+  (let [[offset line] (get-position rh)]
+    (reader-error "Unreadable form (line %s, column %s)" offset line)))
+
+(defmethod handle-prefix-macro ::reader-eval [rh]
+  (let [[item rh] (consume (advance rh 2))]
+    (cond 
+      (seq? item) [(eval item) rh]
+      (symbol? item) [(Class/forName (str item)) rh]
+      :else (reader-error "#= fail"))))
 
 ;;; Strings
 

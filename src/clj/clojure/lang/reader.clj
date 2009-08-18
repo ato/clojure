@@ -1,4 +1,5 @@
-(ns clojure.lang.reader)
+(ns clojure.lang.reader
+  (:require (clojure.lang.reader [internal :as int])))
 
 (defstruct <line> :line :content)
 
@@ -326,7 +327,15 @@
               (recur new-rh)))))))
 
 (defmethod handle-prefix-macro ::fn-shortcut [rh]
-  (consume-and-wrap (advance rh) 'FN)) 
+  (when int/*autofn-syms*
+    (let [[offset line] (get-position rh)]
+      (reader-error "nested #()'s are forbidden (line %s, column %s)" line offset)))
+
+  (binding [int/*autofn-syms* {}] 
+    (consume-delimited (advance rh 2)
+                       #(= \) %)
+                       []
+                       int/autofn*))) 
 
 (defmethod handle-prefix-macro ::metadata [rh]
   (let [[the-meta rh] (if (= \{ (get-char (advance rh 2)))

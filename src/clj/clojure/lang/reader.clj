@@ -20,8 +20,11 @@
   (or (whitespace? char)
       (*non-token-chars* char)))
 
-(defn- reader-error [msg-str & objs]
-  (throw (Exception. (apply format msg-str objs))))
+(defn- reader-error [rh msg-str & objs]
+  (let [[offset line] (get-position rh)]
+    (throw (Exception. (apply format 
+                              (str msg-str " (line %s, column %s)") 
+                              (concat objs [line offset]))))))
 
 (defn numbered-line-seq [#^java.io.BufferedReader rdr]
   (map #(struct <line> %1 %2) (iterate inc 1) (line-seq rdr)))
@@ -57,7 +60,7 @@
   (cond 
     (instance? clojure.lang.IMeta object)
     (with-meta object (merge (meta object) meta-map))
-    do-error? (reader-error "Cannot attach metadata to %s (line %s)" (class object) (get-line rh))
+    do-error? (reader-error rh "Cannot attach metadata to %s" (class object))
     :else object))
 
 (defn- attach-line-meta [rh object]
@@ -131,9 +134,7 @@
    acc rh))
 
 (defmethod consume ::unexpected-closing [rh]
-  (let [[offset line] (get-position rh)]
-    (reader-error "Unexpected closing character %s (line %s, column %s)" 
-                  (get-char rh) line (inc offset))))
+  (reader-error rh "Unexpected closing character %s" (get-char rh)))
 
 (defmethod consume ::open-list [rh]
   (consume-delimited (advance rh) 
@@ -161,15 +162,14 @@
 
 ;;; Other delimited things
 (defmethod handle-prefix-macro ::fail-reader [rh]
-  (let [[offset line] (get-position rh)]
-    (reader-error "Unreadable form (line %s, column %s)" offset line)))
+    (reader-error rh "Unreadable form"))
 
 (defmethod handle-prefix-macro ::reader-eval [rh]
   (let [[item rh] (consume (advance rh 2))]
     (cond 
       (seq? item) [(eval item) rh]
       (symbol? item) [(Class/forName (str item)) rh]
-      :else (reader-error "#= fail"))))
+      :else (reader-error rh "Unsupported #= form"))))
 
 ;;; Strings
 
@@ -182,12 +182,10 @@
                   \r \return 
                   \f \formfeed}
         rh (advance rh)
-        ch (get-char rh)
-        [offset line] (get-position rh)]
+        ch (get-char rh)]
     (if-let [escaped (quotable ch)]
       escaped
-      (reader-error "Unsupported escape character: \\%s (line %s, column %s)" 
-                    ch line offset))))
+      (reader-error rh "Unsupported escape character: \\%s" ch))))
     
 (defmethod consume ::string [rh]
   (let [sb (new java.lang.StringBuilder)]
@@ -289,17 +287,16 @@
    (digit? (first string))))
 
 (defn- parse-token [rh string]
-  (let [[offset line] (get-position rh)]
-    (condp = string
-      "" (reader-error "Expected token, got nothing. (line %s, column %s)" line offset)
-      "nil" nil
-      "true" true
-      "false" false
-      (cond 
-        (possible-number? string) (if-let [n (parse-number string)]
-                                    n
-                                    (reader-error "Invalid number: %s (line %s, column %s)" string line offset))
-        :else (symbol string)))))
+  (condp = string
+    "" (reader-error rh "Expected token, got nothing")
+    "nil" nil
+    "true" true
+    "false" false
+    (cond 
+      (possible-number? string) (if-let [n (parse-number string)]
+                                  n
+                                  (reader-error rh "Invalid number: %s" string))
+      :else (symbol string))))
 
 (defn- consume-token-string [rh]
   (loop [acc [] rh rh]
@@ -342,9 +339,7 @@
 
 (defmethod handle-prefix-macro ::fn-shortcut [rh]
   (when int/*autofn-syms*
-    (let [[offset line] (get-position rh)]
-      (reader-error "nested #()'s are forbidden (line %s, column %s)" line offset)))
-
+    (reader-error rh "nested #()'s are forbidden"))
   (binding [int/*autofn-syms* {}] 
     (consume-delimited (advance rh 2)
                        #(= \) %)

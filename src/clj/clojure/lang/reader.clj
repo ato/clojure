@@ -346,17 +346,30 @@
                        []
                        int/autofn*))) 
 
+(defn- is-tag? [item]
+  (or 
+   (string? item)
+   (keyword? item)
+   (symbol? item)))
+
 (defmethod handle-prefix-macro ::metadata [rh]
   (let [[the-meta rh] (if (= \{ (get-char (advance rh 2)))
                  (consume-delimited (advance rh 3)
                                     #(= \} %)
                                     []
                                     #(apply hash-map %))
-                 (consume-token (advance rh 2)))]
+                 (consume (advance rh 2)))]
     (loop [[item nrh] (consume rh)]
       (cond 
         (identical? *skip* item)  (recur (consume nrh))
-        (map? the-meta) [(maybe-with-meta nrh item the-meta :error-if-not-imeta) nrh]))))
+        (map? the-meta) 
+          [(maybe-with-meta nrh item the-meta :error-if-not-imeta) 
+           nrh]
+        (is-tag? the-meta) 
+          [(maybe-with-meta nrh item {:tag the-meta} :error-if-not-imeta) 
+           nrh]
+        :else (reader-error rh 
+               "Metadata tag must be a string, a symbol or a keyword")))))
 
 (defmethod consume ::line-comment [rh]
   (let [[_ lines] rh]

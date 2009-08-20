@@ -20,6 +20,9 @@
   (or (whitespace? char)
       (*non-token-chars* char)))
 
+(defn- get-position [[offset lines]]
+  [offset (or (:line (first lines)) 'N/A)])
+
 (defn- reader-error [rh msg-str & objs]
   (let [[offset line] (get-position rh)]
     (throw (Exception. (apply format 
@@ -53,8 +56,7 @@
         \newline
         (.charAt content offset)))))
 
-(defn- get-position [[offset lines]]
-  [offset (or (:line (first lines)) 'N/A)])
+
 
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]
   (cond 

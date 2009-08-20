@@ -377,9 +377,24 @@
   (let [[_ lines] rh]
     (consume [0 (rest lines)])))
 
-;; not quite ok...
+(def #^{:private true} lookup-character
+     {"newline"   \newline
+      "tab"       \tab
+      "backspace" \backspace
+      "return"    \return
+      "space"     \space
+      "formfeed"  \formfeed}) ; TODO: add \uNNNN
+
+
 (defmethod consume ::character [rh]
-  [(get-char (advance rh)) (advance rh 2)])
+  (let [[string nrh] (consume-token-string (advance rh))
+        ch
+        (if (== 1 (count string))
+          (first string)
+          (or (lookup-character string)
+              ;; just error out if the escape is invalid
+              (reader-error rh "invalid character escape: \\%s" string)))]
+    [ch nrh]))
 
 (defmethod consume ::skip [rh]
   [*skip* (advance rh)])

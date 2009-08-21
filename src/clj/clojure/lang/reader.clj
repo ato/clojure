@@ -385,15 +385,22 @@
       "space"     \space
       "formfeed"  \formfeed}) ; TODO: add \uNNNN
 
-
+(defn consume-character-escape [rh]
+  (let [ch (get-char rh)]
+    (if (breaks-token? ch)
+      [(str ch) (advance rh)]
+      (consume-token-string rh))))
+ 
 (defmethod consume ::character [rh]
-  (let [[string nrh] (consume-token-string (advance rh))
+  (let [[string nrh] (consume-character-escape (advance rh))
         ch
-        (if (== 1 (count string))
-          (first string)
-          (or (lookup-character string)
-              ;; just error out if the escape is invalid
-              (reader-error rh "invalid character escape: \\%s" string)))]
+        (cond
+          (== 1 (count string))
+          , (first string)
+          :else
+          , (or (lookup-character string)
+                ;; just error out if the escape is invalid
+                (reader-error rh "invalid character escape: \\%s" string)))]
     [ch nrh]))
 
 (defmethod consume ::skip [rh]

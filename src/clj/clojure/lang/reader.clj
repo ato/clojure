@@ -114,6 +114,8 @@
 (defn prefix-dispatch [rh]
   (let [dispatch-table
         {\' ::var
+         \! ::shebang
+         \_ ::ignore-form
          \{ ::open-set
          \^ ::metadata
          \" ::regex-pattern
@@ -381,6 +383,14 @@
 (defmethod consume ::line-comment [rh]
   (let [[_ lines] rh]
     (consume [0 (rest lines)])))
+
+(defmethod handle-prefix-macro ::shebang [rh]
+  (let [[_ lines] rh]
+    (consume [0 (rest lines)])))
+
+(defmethod handle-prefix-macro ::ignore-form [rh]
+  (let [ignore (fn [[item rh]] [*skip* rh])]
+    (ignore (consume (advance rh 2)))))
 
 (def #^{:private true} lookup-character
      {"newline"   \newline

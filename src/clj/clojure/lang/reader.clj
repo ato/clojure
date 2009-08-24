@@ -32,6 +32,11 @@
 (defn numbered-line-seq [#^java.io.BufferedReader rdr]
   (map #(struct <line> %1 %2) (iterate inc 1) (line-seq rdr)))
 
+(defn rh-from-str
+  "Produces reader input from a string. feed to item-seq or consume"
+  [string]
+  [0 (numbered-line-seq (java.io.BufferedReader. (java.io.StringReader. string)))])
+
 (defn- advance 
   ([rh] (advance rh 1))
   ([[offset lines] n]

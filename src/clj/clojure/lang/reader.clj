@@ -326,7 +326,7 @@
         [rh autoqual?] (if (= nc \:) [(advance rh) true] [rh false]) 
         [token-str nrh] (consume-token-string (advance rh))]
     (if autoqual?
-      [(keyword (str *ns*) token-str) nrh]
+      [(keyword (int/resolve-symbol (symbol token-str))) nrh]
       [(keyword token-str) nrh])))
 
 ;; TODO

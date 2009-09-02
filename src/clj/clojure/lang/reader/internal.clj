@@ -1,4 +1,23 @@
 (ns clojure.lang.reader.internal)
+ 
+(defn namespace-for [sym]
+  (let [ns-sym (symbol sym)]
+    (or (.lookupAlias *ns* ns-sym) 
+        (clojure.lang.Namespace/find ns-sym))))
+
+(defn var->symbol [#^clojure.lang.Var v]
+  (symbol (str (.ns v)) (str (.sym v))))
+
+(defn resolve-symbol [sym]
+  (let [ns   (when (.getNamespace sym)
+               (namespace-for (.getNamespace sym)))
+        name (str (name sym))
+        res  (resolve sym)]
+  (cond
+    (and res (class? res)) (symbol (.getCanonicalName res))
+    (and res (var? res)) (var->symbol res)  
+    (not ns) (symbol (str *ns*) name)
+    :else (symbol (str ns) name))))
 
 (def *autofn-syms* nil)
 

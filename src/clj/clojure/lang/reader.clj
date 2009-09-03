@@ -131,16 +131,18 @@
 
 ;;; List, vector, set, map handling
 
-(defn consume-delimited [rh end? acc transform]
-  ((fn [acc h] 
+(defn- add-or-skip [acc [item rh]]
+  [(if (identical? *skip* item) acc (conj acc item))
+   rh])
+
+(defn- consume-delimited [rh end? acc transform]
+  ((fn [[a h]] 
      (if-let [c (get-char h)]
        (if (end? c) 
-         [(transform acc) (advance h)]
-         (let [[item new-rh] (consume h)]
-           (recur (if (identical? *skip* item) 
-                    acc 
-                    (conj acc item)) new-rh))))) 
-   acc rh))
+         [(transform a) (advance h)]
+         (recur (add-or-skip a (consume h)))))) 
+   [acc rh]))
+
 
 (defmethod consume ::unexpected-closing [rh]
   (reader-error rh "Unexpected closing character %s" (get-char rh)))
@@ -173,12 +175,16 @@
 (defmethod handle-prefix-macro ::fail-reader [rh]
     (reader-error rh "Unreadable form"))
 
+
 (defmethod handle-prefix-macro ::reader-eval [rh]
-  (let [[item rh] (consume (advance rh 2))]
-    (cond 
-      (seq? item) [(eval item) rh]
-      (symbol? item) [(Class/forName (str item)) rh]
-      :else (reader-error rh "Unsupported #= form"))))
+  (letfn [(worker [[item nrh]]
+                  (cond 
+                    (seq? item) [(eval item) nrh]
+                    (symbol? item) [(Class/forName (str item)) nrh]
+                    ; nrh gives the error spot a in not quite the
+                    ; right spot, but that should be okay.
+                    :else (reader-error nrh "Unsupported #= form")))]
+    (worker (consume (advance rh 2)))))
 
 ;;; Strings
 
@@ -213,9 +219,10 @@
 
 ;;; Wrapping reader macros
 
-(defn- consume-and-wrap [rh symbol]
-  (let [[item new-rh] (consume rh)]
-    [(list symbol item) new-rh]))  
+(defn- consume-and-wrap [rh sym]
+  (letfn [(wrap [[item rh]]
+                [(list sym item) rh])]
+    (wrap (consume rh))))  
 
 (defmethod consume ::syntax-quote [rh]
   (consume-and-wrap (advance rh) `syntax-quote))
@@ -278,13 +285,13 @@
   (let [[matches? & parts :as match] (re-matches pattern string)]
     (if matches?
       (match-handler match)
-      :no-match)))
+      ::no-match)))
 
 (defn- parse-number [string]
   (let [possible-matches 
         (for [[pat handler] +number-patterns+]
           (match-against pat string handler))]
-    (first (remove (partial identical? :no-match) 
+    (first (remove (partial identical? ::no-match) 
                    possible-matches))))
 
 (defn- digit? [ch]
@@ -308,11 +315,11 @@
       :else (symbol string))))
 
 (defn- consume-token-string [rh]
-  (loop [acc [] rh rh]
-    (let [c (get-char rh)]
+  (loop [acc [] h rh]
+    (let [c (get-char h)]
       (if (and c (not (breaks-token? c)))
-        (recur (conj acc c) (advance rh))
-        [(apply str acc) rh]))))
+        (recur (conj acc c) (advance h))
+        [(apply str acc) h]))))
    
 (defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]

@@ -412,13 +412,32 @@
     (if (breaks-token? ch)
       [(str ch) (advance rh)]
       (consume-token-string rh))))
- 
+
+(defn octal-escape [])
+
+(defn- unicode-escape [rh string]
+  (letfn [(pn []
+              (and (== 5 (count string))
+                   (try (Integer/parseInt (subs string 1) 16)
+                        (catch NumberFormatException e))))]
+    (if-let [ch (pn)]
+      (cond
+        (<= 0xD800 ch 0xDFFF)
+        (reader-error rh "Invalid character constant \\%s" string)
+        :else
+        (char ch))
+      (reader-error rh "Invalid unicode escape \\%s" string))))
+
 (defmethod consume ::character [rh]
   (let [[string nrh] (consume-character-escape (advance rh))
         ch
         (cond
           (== 1 (count string))
           , (first string)
+          (= (first string) \u)
+          , (unicode-escape rh string)
+          (= (first string) \o)
+          , (octal-escape string)
           :else
           , (or (lookup-character string)
                 ;; just error out if the escape is invalid

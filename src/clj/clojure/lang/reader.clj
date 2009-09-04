@@ -413,7 +413,18 @@
       [(str ch) (advance rh)]
       (consume-token-string rh))))
 
-(defn octal-escape [])
+; There's a lot of duplication in these two functions... Perhaps clean
+; up later.
+(defn- octal-escape [rh string]
+  (letfn [(pn []
+              (try (Integer/parseInt (subs string 1) 8)
+                   (catch NumberFormatException e)))]
+    (if-let [ch (pn)]
+      (cond
+        (not (<= 0 ch 0377))
+        (reader-error rh "Octal escape sequence must be in range [0, 377]")
+        :else (char ch))
+      (reader-error rh "Invalid octal character constant \\%s" string))))
 
 (defn- unicode-escape [rh string]
   (letfn [(pn []
@@ -437,7 +448,7 @@
           (= (first string) \u)
           , (unicode-escape rh string)
           (= (first string) \o)
-          , (octal-escape string)
+          , (octal-escape rh string)
           :else
           , (or (lookup-character string)
                 ;; just error out if the escape is invalid

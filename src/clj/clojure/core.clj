@@ -227,7 +227,7 @@
                       fdecl)
               m (conj {:arglists (list 'quote (sigs fdecl))} m)]
           (list 'def (with-meta name (conj (if (meta name) (meta name) {}) m))
-                (cons `fn fdecl)))))
+                (cons 'clojure.core/fn fdecl)))))
 
 (. (var defn) (setMacro))
 
@@ -301,7 +301,7 @@
                 [name doc-string? attr-map? ([params*] body)+ attr-map?])}
  defmacro (fn [name & args]
             (list 'do
-                  (cons `defn (cons name args))
+                  (cons 'clojure.core/defn (cons name args))
                   (list '. (list 'var name) '(setMacro))
                   (list 'var name))))
 
@@ -493,6 +493,50 @@
                        (when zs
                          (cat (first zs) (next zs)))))))]
        (cat (concat x y) zs))))
+
+;;; Things needed for syntax-quote
+
+(defn contains?
+  "Returns true if key is present in the given collection, otherwise
+  returns false.  Note that for numerically indexed collections like
+  vectors and Java arrays, this tests if the numeric key is within the
+  range of indexes. 'contains?' operates constant or logarithmic time;
+  it will not perform a linear search for a value.  See also 'some'."
+  [coll key] (. clojure.lang.RT (contains coll key)))
+
+(defn special-symbol?
+  "Returns true if s names a special form"
+  [s]
+    (contains? (. clojure.lang.Compiler specials) s))
+
+(defn set?
+  "Returns true if x implements IPersistentSet"
+  [x] (instance? clojure.lang.IPersistentSet x))
+
+(defn class?
+  "Returns true if x is an instance of Class"
+  [x] (instance? Class x))
+
+(defn var?
+  "Returns true if v is of type clojure.lang.Var"
+  [v] (instance? clojure.lang.Var v))
+
+(defn alter-var-root
+  "Atomically alters the root binding of var v by applying f to its
+  current value plus any args"
+  [#^clojure.lang.Var v f & args] (.alterRoot v f args))
+
+(defn name
+  "Returns the name String of a symbol or keyword."
+  {:tag String}
+  [#^clojure.lang.Named x]
+    (. x (getName)))
+
+(defn namespace
+  "Returns the namespace String of a symbol or keyword, or nil if not present."
+  {:tag String}
+  [#^clojure.lang.Named x]
+    (. x (getNamespace)))
 
 ;;;;;;;;;;;;;;;;at this point all the support for syntax-quote exists;;;;;;;;;;;;;;;;;;;;;;
 
@@ -949,14 +993,6 @@
 
 ;;map stuff
 
-(defn contains?
-  "Returns true if key is present in the given collection, otherwise
-  returns false.  Note that for numerically indexed collections like
-  vectors and Java arrays, this tests if the numeric key is within the
-  range of indexes. 'contains?' operates constant or logarithmic time;
-  it will not perform a linear search for a value.  See also 'some'."
-  [coll key] (. clojure.lang.RT (contains coll key)))
-
 (defn get
   "Returns the value mapped to key, not-found or nil if key not present."
   ([map key]
@@ -1028,18 +1064,6 @@
   can be a vector or sorted-map), in reverse order. If rev is empty returns nil"
   [#^clojure.lang.Reversible rev]
     (. rev (rseq)))
-
-(defn name
-  "Returns the name String of a symbol or keyword."
-  {:tag String}
-  [#^clojure.lang.Named x]
-    (. x (getName)))
-
-(defn namespace
-  "Returns the namespace String of a symbol or keyword, or nil if not present."
-  {:tag String}
-  [#^clojure.lang.Named x]
-    (. x (getNamespace)))
 
 (defmacro locking
   "Executes exprs in an implicit do, while holding the monitor of x.
@@ -3295,15 +3319,6 @@
      (comp seq :content)
      root))
 
-(defn special-symbol?
-  "Returns true if s names a special form"
-  [s]
-    (contains? (. clojure.lang.Compiler specials) s))
-
-(defn var?
-  "Returns true if v is of type clojure.lang.Var"
-  [v] (instance? clojure.lang.Var v))
-
 (defn slurp
   "Reads the file named by f using the encoding enc into a string
   and returns it."
@@ -3571,15 +3586,6 @@
                         (cons (if (identical? x NIL) nil x) (drain)))))))]
      (send-off agt fill)
      (drain))))
-
-(defn class?
-  "Returns true if x is an instance of Class"
-  [x] (instance? Class x))
-
-(defn alter-var-root
-  "Atomically alters the root binding of var v by applying f to its
-  current value plus any args"
-  [#^clojure.lang.Var v f & args] (.alterRoot v f args))
 
 (defn make-hierarchy
   "Creates a hierarchy object for use with derive, isa? etc."
@@ -4137,10 +4143,6 @@
 (defn list?
   "Returns true if x implements IPersistentList"
   [x] (instance? clojure.lang.IPersistentList x))
-
-(defn set?
-  "Returns true if x implements IPersistentSet"
-  [x] (instance? clojure.lang.IPersistentSet x))
 
 (defn ifn?
   "Returns true if x implements IFn. Note that many data structures

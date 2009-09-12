@@ -47,6 +47,7 @@
          \{ ::open-map
          ; the ::open* handlers consume the closing character,
          ; so this dispatch should never see them.
+         \" ::string
          \) ::unexpected-closing
          \] ::unexpected-closing
          \} ::unexpected-closing

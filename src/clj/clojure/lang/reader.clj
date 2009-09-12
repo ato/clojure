@@ -53,6 +53,8 @@
          \@ ::deref
          \' ::quote
          \^ ::meta
+         \` ::syntax-quote
+         \~ ::unquote
          \# ::macro-prefix
          \\ ::character}]
     (cond 
@@ -125,11 +127,47 @@
                      #{}
                      identity))
 
+;;; Strings
+
+(defn quote-or-error [rh]
+  ; TODO: Any missing?
+  (let [quotable {\" \"  
+                  \\ \\ 
+                  \n \newline 
+                  \t \tab 
+                  \r \return 
+                  \f \formfeed}
+        rh (advance rh)
+        ch (get-char rh)
+        [offset line] (get-position rh)]
+    (if-let [escaped (quotable ch)]
+      escaped
+      (reader-error "Unsupported escape character: \\%s (line %s, character %s)" 
+                    ch line offset))))
+    
+(defmethod consume ::string [rh]
+  (let [sb (new java.lang.StringBuilder)]
+    (loop [rh (advance rh)]
+      (let [ch (get-char rh)
+            new-rh (advance rh)]
+        (cond 
+          (= ch \\) 
+          (do (.append sb (quote-or-error rh))
+              (recur (advance new-rh)))
+          (= ch \") 
+          [(str sb) new-rh]
+          :else 
+          (do (.append sb ch)
+              (recur new-rh)))))))
+
 ;;; Wrapping reader macros
 
 (defn- consume-and-wrap [rh symbol]
   (let [[item new-rh] (consume rh)]
     [(list symbol item) new-rh]))  
+
+(defmethod consume ::syntax-quote [rh]
+  (consume-and-wrap (advance rh) `syntax-quote))
 
 (defmethod consume ::deref [rh]
   (consume-and-wrap (advance rh) `deref))
@@ -140,6 +178,11 @@
 (defmethod consume ::meta [rh]
   (consume-and-wrap (advance rh) `meta))
 
+(defmethod consume ::unquote [rh]
+  (if (= \@ (get-char (advance rh 1)))
+    (consume-and-wrap (advance rh 2) `unquote-splicing)
+    (consume-and-wrap (advance rh) `unquote)))
+              
 (defmethod handle-prefix-macro ::var [rh]
   (consume-and-wrap (advance rh 2) 'var))
  

@@ -93,9 +93,9 @@
          \: ::keyword
          \; ::line-comment}]
     (cond 
-      (nil? c)        ::skip
-      (whitespace? c) ::skip
-      :else           (dispatch c ::token))))      
+      (nil? c)        ::eof
+      (whitespace? c) (recur (advance rh))
+      :else           (dispatch c ::token))))
 
 (defmulti consume consumer-dispatch)
 
@@ -135,9 +135,11 @@
 (defn- consume-delimited [rh end? acc transform]
   ((fn [[a h]] 
      (if-let [c (get-char h)]
-       (if (end? c) 
+       (cond
+         (end? c) 
          [(transform a) (advance h)]
-         (recur (add-or-skip a (consume h)))))) 
+         (whitespace? c) (recur [a (advance h)])
+         :else (recur (add-or-skip a (consume h)))))) 
    [acc rh]))
 
 

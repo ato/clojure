@@ -54,8 +54,8 @@
 (defn- get-char [rh]
   (ffirst rh))
 
-
-
+(defn quick-rh [str]
+  (make-rh (java.io.BufferedReader. (java.io.StringReader. str))))
 
 
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]

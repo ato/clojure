@@ -20,8 +20,22 @@
   (or (whitespace? char)
       (*non-token-chars* char)))
 
-(defn- get-position [[offset lines]]
-  [offset (or (:line (first lines)) 'N/A)])
+(defn make-rh [r]
+  (letfn [(add-char [ch [old-ch line offset]]
+                    (if (= \newline old-ch)
+                        [ch (inc line) 0]
+                        [ch line (inc offset)]))
+          (make-rh-helper [rdr current-info]
+                          (lazy-seq
+                            (let [ch (.read rdr)]
+                              (when (not (== ch -1))
+                                (let [new-info (add-char (char ch) current-info)]
+                                  (cons new-info
+                                        (make-rh-helper rdr new-info)))))))]
+    (make-rh-helper r [\n 0 0])))
+
+(defn- get-position [[_ offset lines]]
+  [offset (or lines 'N/A)])
 
 (defn- reader-error [rh msg-str & objs]
   (let [[offset line] (get-position rh)]
@@ -29,37 +43,18 @@
                               (str msg-str " (line %s, column %s)") 
                               (concat objs [line offset]))))))
 
-(defn numbered-line-seq [#^java.io.BufferedReader rdr]
-  (map #(struct <line> %1 %2) (iterate inc 1) (line-seq rdr)))
-
-(defn rh-from-str
-  "Produces reader input from a string. feed to item-seq or consume"
-  [string]
-  [0 (numbered-line-seq (java.io.BufferedReader. (java.io.StringReader. string)))])
-
 (defn- advance 
   ([rh] (advance rh 1))
-  ([[offset lines] n]
-     (when (first lines)
-       (let [c (count (:content (first lines)))
-             new-off (+ offset n)]
-         (cond
-           ;(zero? c) [0 (rest lines)]
-           (> new-off c) (recur [0 (rest lines)] (- (dec new-off) c))
-           :else [new-off lines])))))
+  ([rh n]
+     (drop n rh)))
 
-(defn- get-line [[offset lines]]
-  (if-let [line (first lines)]
-    (:line line)))
+(defn- get-line [rh]
+  (nth (first rh) 2))
 
-(defn- get-char [[offset lines]]
-  (let [line (first lines) 
-        content (:content line)]
-    (when line 
-      (if (or (empty? content) 
-              (== offset (count content)))
-        \newline
-        (.charAt content offset)))))
+(defn- get-char [rh]
+  (ffirst rh))
+
+
 
 
 

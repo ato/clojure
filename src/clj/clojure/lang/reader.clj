@@ -28,14 +28,16 @@
           (make-rh-helper [rdr current-info]
                           (lazy-seq
                             (let [ch (.read rdr)]
-                              (when (not (== ch -1))
+                              (if (not (== ch -1))
                                 (let [new-info (add-char (char ch) current-info)]
                                   (cons new-info
-                                        (make-rh-helper rdr new-info)))))))]
+                                        (make-rh-helper rdr new-info)))
+                                (list (add-char nil current-info))))))]
     (make-rh-helper r [\n 0 0])))
 
-(defn- get-position [[_ offset lines]]
-  [offset (or lines 'N/A)])
+(defn- get-position [rh]
+  (let [[ch line offset] (first rh)]
+    [line offset]))
 
 (defn- reader-error [rh msg-str & objs]
   (let [[offset line] (get-position rh)]
@@ -49,7 +51,7 @@
      (drop n rh)))
 
 (defn- get-line [rh]
-  (nth (first rh) 2))
+  (second (first rh)))
 
 (defn- get-char [rh]
   (ffirst rh))

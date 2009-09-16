@@ -382,13 +382,18 @@
         :else (reader-error rh 
                "Metadata tag must be a string, a symbol or a keyword")))))
 
+(defn ignore-rest-of-line [rh]
+  (loop [r rh]
+    (let [ch (get-char r)]
+      (if (or (not ch) (= \newline ch))
+        (advance r)
+        (recur (advance r))))))
+
 (defmethod consume ::line-comment [rh]
-  (let [[_ lines] rh]
-    (consume [0 (rest lines)])))
+  (consume (ignore-rest-of-line rh)))
 
 (defmethod handle-prefix-macro ::shebang [rh]
-  (let [[_ lines] rh]
-    (consume [0 (rest lines)])))
+  (consume (ignore-rest-of-line rh)))
 
 (defmethod handle-prefix-macro ::ignore-form [rh]
   (let [ignore (fn [[item rh]] [*skip* rh])]

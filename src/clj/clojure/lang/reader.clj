@@ -1,14 +1,15 @@
 (ns clojure.lang.reader
-  (:require (clojure.lang.reader [internal :as int])))
+  (:require (clojure.lang.reader [internal :as int]))
+  (:refer-clojure :exclude (read)))
 
-(defstruct <line> :line :content)
+(def *eof* nil)
 
 (def *black-hole* (proxy [clojure.lang.APersistentVector] []
                     (cons [obj] this)
                     (count [] 0)))
 
 ; (def *skip* (new [] (toString [] "Object ignored by reader"))) 
-(def #^{:private true} *skip* (Object. ) )
+(def *skip* (Object. ))
 
 (def *non-token-chars* (set (seq "()[]{}\\\"")))
 
@@ -67,37 +68,44 @@
     do-error? (reader-error rh "Cannot attach metadata to %s" (class object))
     :else object))
 
+
+;(defn- attach-line-meta [rh object]
+;  (maybe-with-meta rh object {:line (get-line rh)}))
+
 (defn- attach-line-meta [rh object]
-  (maybe-with-meta rh object {:line (get-line rh)}))
+  object)
 
-(defn consumer-dispatch [rh]
-  (let [c (get-char rh)
-       
-        dispatch 
-        {\( ::open-list
-         \[ ::open-vector
-         \{ ::open-map
-         ; the ::open* handlers consume the closing character,
-         ; so this dispatch should never see them.
-         \" ::string
-         \) ::unexpected-closing
-         \] ::unexpected-closing
-         \} ::unexpected-closing
-         \@ ::deref
-         \' ::quote
-         \^ ::meta
-         \` ::syntax-quote
-         \~ ::unquote
-         \# ::macro-prefix
-         \\ ::character
-         \: ::keyword
-         \; ::line-comment}]
-    (cond 
-      (nil? c)        ::eof
-      (whitespace? c) ::skip
-      :else           (dispatch c ::token))))
+(let [dispatch
+      {\( ::open-list
+       \[ ::open-vector
+       \{ ::open-map
+       ;; the ::open* handlers consume the closing character,
+       ;; so this dispatch should never see them.
+       \" ::string
+       \) ::unexpected-closing
+       \] ::unexpected-closing
+       \} ::unexpected-closing
+       \@ ::deref
+       \' ::quote
+       \^ ::meta
+       \` ::syntax-quote
+       \~ ::unquote
+       \# ::macro-prefix
+       \\ ::character
+       \: ::keyword
+       \; ::line-comment}]
+  ;; closes over the dispatch table
+  (defn consumer-dispatch [rh]
+    (let [c (get-char rh)]
+      (cond 
+        (nil? c)        ::eof
+        (whitespace? c) ::skip
+        :else           (dispatch c ::token)))))
 
-(defmulti consume consumer-dispatch)
+;;; works around some bootstrapping issues
+(declare consume)
+(when-not (.isBound #'consume)
+  (defmulti consume consumer-dispatch))
 
 (defn item-seq [rh]
  (remove #(identical? % *skip*) 
@@ -107,21 +115,23 @@
                (cons item (item-seq rh)))))))
 
 ; Prefix macro dispatch
+(let [dispatch-table
+      {\' ::var
+       \! ::shebang
+       \_ ::ignore-form
+       \{ ::open-set
+       \^ ::metadata
+       \" ::regex-pattern
+       \< ::fail-reader
+       \= ::reader-eval
+       \( ::fn-shortcut}]
 
-(defn prefix-dispatch [rh]
-  (let [dispatch-table
-        {\' ::var
-         \! ::shebang
-         \_ ::ignore-form
-         \{ ::open-set
-         \^ ::metadata
-         \" ::regex-pattern
-         \< ::fail-reader
-         \= ::reader-eval
-         \( ::fn-shortcut}]
+  (defn prefix-dispatch [rh]
     (dispatch-table (get-char (advance rh)) ::eof)))
 
-(defmulti handle-prefix-macro prefix-dispatch)
+(declare handle-prefix-macro)
+(when-not (.isBound #'handle-prefix-macro)
+  (defmulti handle-prefix-macro prefix-dispatch))
 
 (defmethod consume ::macro-prefix [rh]
   (handle-prefix-macro rh))
@@ -211,7 +221,7 @@
           (do (.append sb (quote-or-error rh))
               (recur (advance new-rh)))
           (= ch \") 
-          [(str sb) new-rh]
+          [(.intern (str sb)) new-rh]
           :else 
           (do (.append sb ch)
               (recur new-rh)))))))
@@ -224,21 +234,21 @@
     (wrap (consume rh))))  
 
 (defmethod consume ::syntax-quote [rh]
-  (consume-and-wrap (advance rh) `syntax-quote))
+  (consume-and-wrap (advance rh) 'clojure.core/syntax-quote))
 
 (defmethod consume ::deref [rh]
-  (consume-and-wrap (advance rh) `deref))
+  (consume-and-wrap (advance rh) 'clojure.core/deref))
 
 (defmethod consume ::quote [rh]
   (consume-and-wrap (advance rh) 'quote))
 
 (defmethod consume ::meta [rh]
-  (consume-and-wrap (advance rh) `meta))
+  (consume-and-wrap (advance rh) 'clojure.core/meta))
 
 (defmethod consume ::unquote [rh]
   (if (= \@ (get-char (advance rh 1)))
-    (consume-and-wrap (advance rh 2) `unquote-splicing)
-    (consume-and-wrap (advance rh) `unquote)))
+    (consume-and-wrap (advance rh 2) 'clojure.core/unquote-splicing)
+    (consume-and-wrap (advance rh) 'clojure.core/unquote)))
               
 (defmethod handle-prefix-macro ::var [rh]
   (consume-and-wrap (advance rh 2) 'var))
@@ -318,7 +328,7 @@
     (let [c (get-char h)]
       (if (and c (not (breaks-token? c)))
         (recur (conj acc c) (advance h))
-        [(apply str acc) h]))))
+        [(.intern (apply str acc)) h]))))
    
 (defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]
@@ -463,7 +473,15 @@
   [*skip* (advance rh)])
 
 (defmethod consume ::eof [rh] 
-  [rh nil])
+  [*eof* rh])
 
 (defmethod handle-prefix-macro ::eof [rh]
-  [rh nil])
+  [*eof* rh])
+
+(defn read [pbr eof-value]
+  (let [rh (make-rh pbr)]
+    (binding [*eof* eof-value]
+      (loop [[item nrh] (consume rh)]
+        (if (identical? item *skip*)
+          (recur (consume nrh))
+          item)))))

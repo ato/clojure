@@ -94,7 +94,7 @@
          \; ::line-comment}]
     (cond 
       (nil? c)        ::eof
-      (whitespace? c) (recur (advance rh))
+      (whitespace? c) ::skip
       :else           (dispatch c ::token))))
 
 (defmulti consume consumer-dispatch)
@@ -376,7 +376,7 @@
                  (consume (advance rh 2)))]
     (loop [[item nrh] (consume rh)]
       (cond 
-        (identical? *skip* item)  (recur (consume nrh))
+        (identical? *skip* item) (recur (consume nrh))
         (map? the-meta) 
           [(maybe-with-meta nrh item the-meta :error-if-not-imeta) 
            nrh]

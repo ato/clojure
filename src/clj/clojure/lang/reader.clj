@@ -405,7 +405,7 @@
   (loop [r rh]
     (let [ch (get-char r)]
       (if (or (not ch) (= \newline ch))
-        (advance r)
+        r
         (recur (advance r))))))
 
 (defmethod consume ::line-comment [rh]

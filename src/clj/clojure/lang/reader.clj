@@ -24,8 +24,8 @@
 (defn make-rh [r]
   (letfn [(add-char [ch [old-ch line offset]]
                     (if (= \newline old-ch)
-                        [ch (inc line) 0]
-                        [ch line (inc offset)]))
+                        [ch (inc line) 0 r]
+                        [ch line (inc offset) r]))
           (make-rh-helper [rdr current-info]
                           (lazy-seq
                             (let [ch (.read rdr)]
@@ -37,7 +37,7 @@
     (make-rh-helper r [\n 0 0])))
 
 (defn- get-position [rh]
-  (let [[ch line offset] (first rh)]
+  (let [[ch line offset r] (first rh)]
     [line offset]))
 
 (defn- reader-error [rh msg-str & objs]
@@ -57,14 +57,16 @@
 (defn- get-char [rh]
   (ffirst rh))
 
-(defn quick-rh [str]
-  (make-rh (java.io.BufferedReader. (java.io.StringReader. str))))
-
+(defn- put-char!
+  "Danger! If you use this you need to be certain that the reader-handle is the most recent one."
+  [rh ch]
+  (let [[_ _ _ #^java.io.PushbackReader r] (first rh)]
+    (.unread r (int ch))))
 
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]
   (cond 
     (instance? clojure.lang.IMeta object)
-    (with-meta object (merge (meta object) meta-map))
+    (vary-meta object merge meta-map)
     do-error? (reader-error rh "Cannot attach metadata to %s" (class object))
     :else object))
 
@@ -328,7 +330,10 @@
     (let [c (get-char h)]
       (if (and c (not (breaks-token? c)))
         (recur (conj acc c) (advance h))
-        [(.intern (apply str acc)) h]))))
+        (do
+          (when (and c (whitespace? c))
+            (put-char! h c)) ; need to unread it. state :-(
+          [(apply str acc) h])))))
    
 (defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]

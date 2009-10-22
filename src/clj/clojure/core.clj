@@ -2483,7 +2483,9 @@
   ([stream eof-error? eof-value]
    (read stream eof-error? eof-value false))
   ([stream eof-error? eof-value recursive?]
-   (. clojure.lang.LispReader (read stream (boolean eof-error?) eof-value recursive?))))
+     (if-let [clj-read (find-var 'clojure.lang.reader/read)]
+       (clj-read stream eof-value)
+       (. clojure.lang.LispReader (read stream (boolean eof-error?) eof-value recursive?)))))
 
 (defn read-line
   "Reads the next line from stream that is the current value of *in* ."

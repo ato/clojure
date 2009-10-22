@@ -585,7 +585,7 @@
       (class? ns-res)    (symbol (.getName ns-res) the-name)
       (when (not the-ns)
         (class? res))    (symbol (str (.getName res)
-                                      (when (.endsWith the-name ".") ".")))
+                                      (when (.endsWith (name sym) ".") ".")))
       the-ns             (symbol the-ns the-name)
       :else              (symbol (str *ns*) the-name))))
 

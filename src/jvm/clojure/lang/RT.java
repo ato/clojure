@@ -395,15 +395,26 @@ static public void load(String scriptbase, boolean failIfNotFound) throws Except
 	if(!loaded && cljURL != null) {
 		if(booleanCast(Compiler.COMPILE_FILES.deref()))
 			compile(cljfile);
-		else
-			loadResourceScript(RT.class, cljfile);
+                else
+                    loadResourceScript(RT.class, cljfile);
 	}
+        else if (loaded && cljURL != null && booleanCast(Compiler.FORCIBLY_RECOMPILE.deref())) {
+            try {
+                Var.pushThreadBindings(RT.map(Compiler.COMPILE_FILES, Boolean.TRUE));
+                System.out.println("Forcing recompilation for " + scriptbase);
+                compile(cljfile);
+            }
+            finally {
+                Var.popThreadBindings();
+            }
+        } 
 	else if(!loaded && failIfNotFound)
 		throw new FileNotFoundException(String.format("Could not locate %s or %s on classpath: ", classfile, cljfile));
 }
 
 static void doInit() throws Exception{
 	load("clojure/core");
+        load("clojure/lang/reader");
 	load("clojure/zip", false);
 	load("clojure/xml", false);
 	load("clojure/set", false);

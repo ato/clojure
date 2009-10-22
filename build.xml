@@ -115,7 +115,7 @@
 
   <target name="compile-clojure" depends="prepare-recompilation"
           description="Compile Clojure sources.">
-    <java fork="true" classname="clojure.lang.Compile"
+    <java fork="true" classname="clojure.lang.Recompile"
       classpath="${build}:bootstrap/classes/:${cljsrc}"
           failonerror="true">
       <sysproperty key="clojure.compile.path" value="${build}"/>

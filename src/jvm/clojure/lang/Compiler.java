@@ -198,6 +198,9 @@ static final public Var COMPILE_PATH = Var.intern(Namespace.findOrCreate(Symbol.
 static final public Var COMPILE_FILES = Var.intern(Namespace.findOrCreate(Symbol.create("clojure.core")),
                                                    Symbol.create("*compile-files*"), Boolean.FALSE);
 
+static final public Var FORCIBLY_RECOMPILE = Var.intern(Namespace.findOrCreate(Symbol.create("clojure.core")),
+                                                   Symbol.create("*force-recompilation*"), Boolean.FALSE);
+
 //Integer
 static final public Var LINE = Var.create(0);
 

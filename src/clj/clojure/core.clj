@@ -544,8 +544,8 @@
 (def #^{:private true} *sq-gensyms* nil)
 
 (defn is-call? {:private true} [operator form]
-  (if (seq? form) 
-    (.equals (first form) operator)))
+  (when (seq? form)
+    (.equals operator (first form))))
 
 ;; simple versions needed here; will be redefined later
 

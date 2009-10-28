@@ -67,16 +67,12 @@
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]
   (cond 
     (instance? clojure.lang.IMeta object)
-    (vary-meta object merge meta-map)
+    (.withMeta #^clojure.lang.IObj object (merge ^object meta-map))
     do-error? (reader-error rh "Cannot attach metadata to %s" (class object))
     :else object))
 
-
-;(defn- attach-line-meta [rh object]
-;  (maybe-with-meta rh object {:line (get-line rh)}))
-
 (defn- attach-line-meta [rh object]
-  object)
+  (maybe-with-meta rh object {:line (get-line rh)}))
 
 (let [dispatch
       {\( ::open-list
@@ -160,11 +156,16 @@
 (defmethod consume ::unexpected-closing [rh]
   (reader-error rh "Unexpected closing character %s" (get-char rh)))
 
+
 (defmethod consume ::open-list [rh]
-  (consume-delimited (advance rh) 
-                     #(= \) %)
-                     []
-                     #(apply list %)))
+  (let [line (get-line rh)
+        attach-it (fn [[item nrh]]
+                    [(maybe-with-meta nrh item {:line line}) nrh])]
+    (attach-it
+     (consume-delimited (advance rh) 
+                        #(= \) %)
+                        []
+                        #(apply list %)))))
 
 (defmethod consume ::open-vector [rh]
   (consume-delimited (advance rh) 
@@ -338,7 +339,7 @@
    
 (defn- consume-token [rh]
   (let [[token-str nrh] (consume-token-string rh)]
-    [(attach-line-meta nrh (parse-token rh token-str)) nrh]))
+    [(parse-token rh token-str) nrh]))
 
 (defmethod consume ::token [rh]
   (consume-token rh))
@@ -393,11 +394,16 @@
       (cond 
         (identical? *skip* item) (recur (consume (advance nrh)))
         (map? the-meta) 
-          [(maybe-with-meta nrh item the-meta :error-if-not-imeta) 
-           nrh]
+        [(maybe-with-meta nrh item (merge
+                                    {:line (get-line rh)}
+                                    the-meta)
+           :error-if-not-imeta) 
+         nrh]
         (is-tag? the-meta) 
-          [(maybe-with-meta nrh item {:tag the-meta} :error-if-not-imeta) 
-           nrh]
+        [(maybe-with-meta nrh item {:line (get-line rh)
+                                    :tag the-meta}
+           :error-if-not-imeta) 
+         nrh]
         :else (reader-error rh 
                "Metadata tag must be a string, a symbol or a keyword")))))
 

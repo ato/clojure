@@ -11,7 +11,7 @@
 ; (def *skip* (new [] (toString [] "Object ignored by reader"))) 
 (def *skip* (Object. ))
 
-(def *non-token-chars* (set (seq "()[]{}\\\"")))
+(def *non-token-chars* (set (seq "()[]{}\\\"'`@~")))
 
 (defn- whitespace? [char]
   (or (= char \,)
@@ -41,7 +41,7 @@
     [line offset]))
 
 (defn- reader-error [rh msg-str & objs]
-  (let [[offset line] (get-position rh)]
+  (let [[line offset] (get-position rh)]
     (throw (Exception. (apply format 
                               (str msg-str " (line %s, column %s)") 
                               (concat objs [line offset]))))))
@@ -59,9 +59,10 @@
 
 (defn- put-char!
   "Danger! If you use this you need to be certain that the reader-handle is the most recent one."
-  [rh ch]
-  (let [[_ _ _ #^java.io.PushbackReader r] (first rh)]
-    (.unread r (int ch))))
+  [rh]
+  (let [[ch _ _ #^java.io.PushbackReader r] (first rh)]
+    (when ch
+      (.unread r (int ch)))))
 
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]
   (cond 
@@ -149,9 +150,10 @@
      (if-let [c (get-char h)]
        (cond
          (end? c) 
-         [(transform a) (advance h)]
+         [(transform a) h]
          (whitespace? c) (recur [a (advance h)])
-         :else (recur (add-or-skip a (consume h)))))) 
+         :else (let [[a nrh] (add-or-skip a (consume h))]
+                 (recur [a (advance nrh)]))))) 
    [acc rh]))
 
 
@@ -212,21 +214,20 @@
     (if-let [escaped (quotable ch)]
       escaped
       (reader-error rh "Unsupported escape character: \\%s" ch))))
-    
+
 (defmethod consume ::string [rh]
   (let [sb (new java.lang.StringBuilder)]
     (loop [rh (advance rh)]
-      (let [ch (get-char rh)
-            new-rh (advance rh)]
+      (let [ch (get-char rh)]
         (cond 
           (= ch \\) 
           (do (.append sb (quote-or-error rh))
-              (recur (advance new-rh)))
+              (recur (advance rh 2)))
           (= ch \") 
-          [(.intern (str sb)) new-rh]
+          [(.intern (str sb)) rh]
           :else 
           (do (.append sb ch)
-              (recur new-rh)))))))
+              (recur (advance rh))))))))
 
 ;;; Wrapping reader macros
 
@@ -331,8 +332,8 @@
       (if (and c (not (breaks-token? c)))
         (recur (conj acc c) (advance h))
         (do
-          (when (and c (whitespace? c))
-            (put-char! h c)) ; need to unread it. state :-(
+          (when (and c (breaks-token? c))
+            (put-char! h)) ; need to unread it. state :-(
           [(apply str acc) h])))))
    
 (defn- consume-token [rh]
@@ -355,17 +356,16 @@
 (defmethod handle-prefix-macro ::regex-pattern [rh]
   (let [sb (new java.lang.StringBuilder)]
     (loop [rh (advance rh 2)]
-      (let [ch (get-char rh)
-            new-rh (advance rh)]
+      (let [ch (get-char rh)]
         (cond 
-          (and (= ch \\) (= (get-char new-rh) \"))
+          (and (= ch \\) (= (get-char (advance rh)) \"))
           (do (.append sb \")
-              (recur (advance new-rh)))
+              (recur (advance rh 2)))
           (= ch \") 
-          [(java.util.regex.Pattern/compile (str sb)) new-rh]
+          [(java.util.regex.Pattern/compile (str sb)) rh]
           :else 
           (do (.append sb ch)
-              (recur new-rh)))))))
+              (recur (advance rh))))))))
 
 (defmethod handle-prefix-macro ::fn-shortcut [rh]
   (when int/*autofn-syms*
@@ -389,9 +389,9 @@
                                     []
                                     #(apply hash-map %))
                  (consume (advance rh 2)))]
-    (loop [[item nrh] (consume rh)]
+    (loop [[item nrh] (consume (advance rh))]
       (cond 
-        (identical? *skip* item) (recur (consume nrh))
+        (identical? *skip* item) (recur (consume (advance nrh)))
         (map? the-meta) 
           [(maybe-with-meta nrh item the-meta :error-if-not-imeta) 
            nrh]
@@ -405,7 +405,8 @@
   (loop [r rh]
     (let [ch (get-char r)]
       (if (or (not ch) (= \newline ch))
-        r
+        (do (put-char! r) ; we don't want to consume the newline
+            r)
         (recur (advance r))))))
 
 (defmethod consume ::line-comment [rh]
@@ -429,7 +430,7 @@
 (defn consume-character-escape [rh]
   (let [ch (get-char rh)]
     (if (breaks-token? ch)
-      [(str ch) (advance rh)]
+      [(str ch) rh]
       (consume-token-string rh))))
 
 ; There's a lot of duplication in these two functions... Perhaps clean
@@ -475,7 +476,7 @@
     [ch nrh]))
 
 (defmethod consume ::skip [rh]
-  [*skip* (advance rh)])
+  [*skip* rh])
 
 (defmethod consume ::eof [rh] 
   [*eof* rh])
@@ -488,5 +489,5 @@
     (binding [*eof* eof-value]
       (loop [[item nrh] (consume rh)]
         (if (identical? item *skip*)
-          (recur (consume nrh))
+          (recur (consume (advance nrh)))
           item)))))

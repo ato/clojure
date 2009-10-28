@@ -36,9 +36,15 @@
                                 (list (add-char nil current-info))))))]
     (make-rh-helper r [\n 0 0])))
 
+(defn- get-line [rh]
+  (let [r (nth rh 3)]
+    (if (instance? clojure.lang.LineNumberingPushbackReader r)
+      (.getLineNumber #^clojure.lang.LineNumberingPushbackReader r)
+      -1)))
+
 (defn- get-position [rh]
-  (let [[ch line offset r] (first rh)]
-    [line offset]))
+  (let [[ch _ offset r] (first rh)]
+    [(get-line rh) offset]))
 
 (defn- reader-error [rh msg-str & objs]
   (let [[line offset] (get-position rh)]
@@ -50,9 +56,6 @@
   ([rh] (advance rh 1))
   ([rh n]
      (drop n rh)))
-
-(defn- get-line [rh]
-  (second (first rh)))
 
 (defn- get-char [rh]
   (ffirst rh))

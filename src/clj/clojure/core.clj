@@ -618,12 +618,14 @@
   {:private true} 
   [sym]
   (if (not (.endsWith (name sym) "#"))
-    (qualify-symbol sym)
+    (with-meta (qualify-symbol sym) ^sym)
     (let [auto (*sq-gensyms* (name sym))]
       (if auto
         auto
         (let [new-sym 
-              (gensym (apply str (concat (butlast (name sym)) "__auto__")))]
+              (with-meta
+                (gensym (apply str (concat (butlast (name sym)) "__auto__")))
+                ^sym)]
           (set! *sq-gensyms* (assoc *sq-gensyms* (name sym) new-sym))
           new-sym)))))  
   

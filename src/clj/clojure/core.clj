@@ -630,7 +630,7 @@
           new-sym)))))  
   
 (defn syntax-quote*
-  {:private true} 
+  ;{:private true} 
   [form]
   (cond
     (special-symbol? form) (sq-w :q form)

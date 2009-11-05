@@ -241,7 +241,9 @@
     (wrap (consume rh))))  
 
 (defmethod consume ::syntax-quote [rh]
-  (consume-and-wrap (advance rh) 'clojure.core/syntax-quote))
+  ((fn [[item nrh]] [(binding [clojure.core/*sq-gensyms* {}]
+                       (second (syntax-quote* item)))
+                     nrh]) (consume (advance rh))))
 
 (defmethod consume ::deref [rh]
   (consume-and-wrap (advance rh) 'clojure.core/deref))

@@ -4502,6 +4502,10 @@ public static Object macroexpand1(Object x) throws Exception{
 				Symbol sym = (Symbol) op;
 				String sname = sym.name;
 				//(.substring s 2 5) => (. s substring 2 5)
+        if (sname.length() == 0) {
+          System.err.println(form.toString());
+          System.err.flush();
+          throw new Exception(form.toString()); }
 				if(sym.name.charAt(0) == '.')
 					{
 					if(RT.length(form) < 2)

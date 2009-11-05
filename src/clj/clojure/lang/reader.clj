@@ -37,10 +37,10 @@
     (make-rh-helper r [\n 0 0])))
 
 (defn- get-line [rh]
-  (let [r (nth rh 3)]
+  (let [r (nth (first rh) 3)]
     (if (instance? clojure.lang.LineNumberingPushbackReader r)
-      (.getLineNumber #^clojure.lang.LineNumberingPushbackReader r)
-      -1)))
+      (.getLineNumber r)
+      0)))
 
 (defn- get-position [rh]
   (let [[ch _ offset r] (first rh)]
@@ -63,14 +63,14 @@
 (defn- put-char!
   "Danger! If you use this you need to be certain that the reader-handle is the most recent one."
   [rh]
-  (let [[ch _ _ #^java.io.PushbackReader r] (first rh)]
+  (let [[ch _ _ r] (first rh)]
     (when ch
       (.unread r (int ch)))))
 
 (defn- maybe-with-meta [rh object meta-map & [do-error?]]
   (cond 
     (instance? clojure.lang.IMeta object)
-    (.withMeta #^clojure.lang.IObj object (merge ^object meta-map))
+    (.withMeta object (merge ^object meta-map))
     do-error? (reader-error rh "Cannot attach metadata to %s" (class object))
     :else object))
 
@@ -98,11 +98,11 @@
        \; ::line-comment}]
   ;; closes over the dispatch table
   (defn consumer-dispatch [rh]
-    (let [c (get-char rh)]
+    (let [ch (get-char rh)]
       (cond 
-        (nil? c)        ::eof
-        (whitespace? c) ::skip
-        :else           (dispatch c ::token)))))
+        (nil? ch)        ::eof
+        (whitespace? ch) ::skip
+        :else           (dispatch ch ::token)))))
 
 ;;; works around some bootstrapping issues
 (declare consume)
@@ -146,11 +146,11 @@
 
 (defn- consume-delimited [rh end? acc transform]
   ((fn [[a h]] 
-     (if-let [c (get-char h)]
+     (if-let [ch (get-char h)]
        (cond
-         (end? c) 
+         (end? ch) 
          [(transform a) h]
-         (whitespace? c) (recur [a (advance h)])
+         (whitespace? ch) (recur [a (advance h)])
          :else (let [[a nrh] (add-or-skip a (consume h))]
                  (recur [a (advance nrh)]))))) 
    [acc rh]))
@@ -205,6 +205,8 @@
 
 ;;; Strings
 
+(declare unicode-escape) 
+
 (defn quote-or-error [rh]
   ; TODO: Any missing?
   (let [quotable {\" \"  
@@ -215,9 +217,11 @@
                   \f \formfeed}
         rh (advance rh)
         ch (get-char rh)]
-    (if-let [escaped (quotable ch)]
-      escaped
-      (reader-error rh "Unsupported escape character: \\%s" ch))))
+    (let [escaped (quotable ch)]
+      (cond escaped escaped
+            ;; hairy, but... should work.
+            (= \u ch) (unicode-escape rh (apply str (map get-char (take 5 (iterate advance rh)))))  
+            :else (reader-error rh "Unsupported escape character: \\%s" ch)))))
 
 (defmethod consume ::string [rh]
   (let [sb (new java.lang.StringBuilder)]
@@ -322,23 +326,27 @@
 
 (defn- parse-token [rh string]
   (condp = string
+    nil (reader-error rh "Huh, a nil token string?")
     "" (reader-error rh "Expected token, got nothing")
     "nil" nil
     "true" true
     "false" false
+    "clojure.core//" 'clojure.core//
+    "/" '/
     (cond 
       (possible-number? string) (if-let [n (parse-number string)]
                                   n
                                   (reader-error rh "Invalid number: %s" string))
-      :else (symbol string))))
+      :else
+      (symbol string))))
 
 (defn- consume-token-string [rh]
   (loop [acc [] h rh]
-    (let [c (get-char h)]
-      (if (and c (not (breaks-token? c)))
-        (recur (conj acc c) (advance h))
+    (let [ch (get-char h)]
+      (if (and ch (not (breaks-token? ch)))
+        (recur (conj acc ch) (advance h))
         (do
-          (when (and c (breaks-token? c))
+          (when (and ch (breaks-token? ch))
             (put-char! h)) ; need to unread it. state :-(
           [(apply str acc) h])))))
    

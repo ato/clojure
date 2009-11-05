@@ -578,6 +578,8 @@
       ;; there is no need to care about the namespace in this case;
       ;; the original syntax-quote did not resolve names containing dots
       ;; No "and" available yet...
+      (.startsWith (name sym) ".")
+      , sym
       (when (not res)
         (.contains (name sym) "."))
       , sym

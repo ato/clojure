@@ -60,6 +60,10 @@ public static void main(String[] args) throws Exception{
             compile.invoke(Symbol.intern(lib));
         }
 		}
+    catch (Exception e) {
+      e.getCause().printStackTrace();
+    }
+      
 	finally
 		{
         Var.popThreadBindings();
@@ -70,7 +74,7 @@ public static void main(String[] args) throws Exception{
 			}
 		catch(IOException e)
 			{
-			e.printStackTrace(err);
+			e.printStackTrace();
 			}
 		}
 }

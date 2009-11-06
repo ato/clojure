@@ -613,11 +613,11 @@
       (clojure.lang.Var/pushThreadBindings {#'*within-seq* true})
       ;; loop enforces strictness
       (if (seq form)
-        (list 'clojure.core/seq (cons 'clojure.core/concat (loop [f form a []]
-                                                             (if (seq f) 
-                                                               (recur (next f) (conj a (syntax-quote* (first f))))
-                                                               a))))
-        (list 'list))
+        (list 'clojure.core/seq (cons 'clojure.core/concat (seq (loop [f form a []]
+                                                                  (if (seq f) 
+                                                                    (recur (next f) (conj a (syntax-quote* (first f))))
+                                                                    a)))))
+        (cons 'list nil))
       (finally
        (clojure.lang.Var/popThreadBindings)))))
 
@@ -654,12 +654,12 @@
     (map? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-map 
                          (sq-seq (apply concat (seq form)))))
     (set? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-set (sq-seq form)))
-    (seq? form) (sq-w (sq-seq form))
+    (seq? form) (sq-w (seq (sq-seq form)))
     (keyword? form) (sq-w form)
     (string? form) (sq-w form)
     (instance? java.lang.Number form) (sq-w form)
     (instance? Character form) (sq-w form) 
-    :else (sq-w (list 'quote form))))
+    :else (sq-w :q form)))
 
 (defmacro syntax-quote [form]
   (try
@@ -1971,6 +1971,7 @@
   "Returns a lazy sequence of the items in coll starting from the first
   item for which (pred item) returns nil."
   [pred coll]
+  (.println System/out (str "drop-while pred:" pred)) (.flush System/out)
   (let [step (fn [pred coll]
                (let [s (seq coll)]
                  (if (and s (pred (first s)))
@@ -3596,10 +3597,14 @@
   body is the expansion, calls to which may be expanded inline as if
   it were a macro. Cannot be used with variadic (&) args." 
   [name & decl]
-  (.println System/out (str "definline: " decl)) (flush)
-  (let [[pre-args [args expr]] (split-with (comp not vector?) decl)]
+  (let [[pre-args [args expr]] (split-with (fn helper [item & the-rest]
+                                             (.println System/out (str "item: " item \newline
+                                                                       "rest: " the-rest))
+                                             (flush)
+                                             (Thread/sleep 100)
+                                             (not (vector? item))) decl)]
     `(do
-       (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
+       (defn ~name ~@(seq pre-args) ~args ~(apply (eval (list `fn args expr)) args))
        (alter-meta! (var ~name) assoc :inline (fn ~args ~expr))
        (var ~name))))
 

@@ -84,7 +84,7 @@
   </target>
 
   <target name="bootstrap" depends="init">
-    <java classname="clojure.lang.Compile"
+    <java classname="clojure.lang.Recompile"
       classpath="${cljsrc}:bootstrap/clojure.jar:bootstrap/classes/">
       <sysproperty key="clojure.compile.path" value="bootstrap/classes/"/>
       <!-- <sysproperty key="clojure.compile.warn-on-reflection" value="true"/> -->

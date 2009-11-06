@@ -246,7 +246,7 @@
 
 (defmethod consume ::syntax-quote [rh]
   ((fn [[item nrh]] [(binding [clojure.core/*sq-gensyms* {}]
-                       (second (syntax-quote* item)))
+                       (syntax-quote* item))
                      nrh]) (consume (advance rh))))
 
 (defmethod consume ::deref [rh]

@@ -540,7 +540,7 @@
 
 ;;;;;;;;;;;;;;;;at this point all the support for syntax-quote exists;;;;;;;;;;;;;;;;;;;;;;
 
-(def #^{:private true} *splice-allowed* false)
+(def #^{:private true} *within-seq* false)
 (def #^{:private true} *sq-gensyms* nil)
 
 (defn is-call? {:private true} [operator form]
@@ -596,23 +596,26 @@
   so that splicing things is easier"
   {:private true}
   ([form]
-     (list 'clojure.core/list form))
+     (if *within-seq*
+       (list 'clojure.core/list form)
+       form))
   ([quote? form]
-     (list 'clojure.core/list (list 'quote form))))
+     (if *within-seq*
+       (list 'clojure.core/list (list 'quote form))
+       (list 'quote form))))
 
 (def syntax-quote*)
 
 (defn sq-seq 
   {:private true}
-  ([form] (sq-seq form false))
-  ([form splicable?]
+  ([form]
      (try
-      (clojure.lang.Var/pushThreadBindings {#'*splice-allowed* splicable?})
+      (clojure.lang.Var/pushThreadBindings {#'*within-seq* true})
       ; no doall here so needs a loop to enforce strictness
-      (list* 'clojure.core/concat (loop [f form a []]
-                                    (if (seq f) 
-                                      (recur (next f) (conj a (syntax-quote* (first f))))
-                                      a))) 
+      (list 'clojure.core/seq (cons 'clojure.core/concat (loop [f form a []]
+                                                            (if (seq f) 
+                                                              (recur (next f) (conj a (syntax-quote* (first f))))
+                                                              a)))) 
       (finally
        (clojure.lang.Var/popThreadBindings)))))
 
@@ -639,17 +642,17 @@
     (is-call? 'clojure.core/unquote form) 
     , (sq-w (second form))
     (is-call? 'clojure.core/unquote-splicing form) 
-    , (if *splice-allowed* 
+    , (if *within-seq* 
         (list* 'do (rest form)) 
         (throw (IllegalStateException. "Splice not in sequential collection"))) 
      
     (is-call? 'syntax-quote form) (sq-w :q form)
     (symbol? form) (sq-w :q (sq-sym form))
-    (vector? form) (sq-w (list 'clojure.core/vec (sq-seq form :splicable)))
+    (vector? form) (sq-w (list 'clojure.core/vec (sq-seq form)))
     (map? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-map 
                          (sq-seq (apply concat (seq form)))))
-    (set? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-set (sq-seq form :splicable)))
-    (seq? form) (sq-w (sq-seq form :splicable))
+    (set? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-set (sq-seq form)))
+    (seq? form) (sq-w (sq-seq form))
     :else (sq-w (list 'quote form))))
 
 (defmacro syntax-quote [form]

@@ -611,11 +611,13 @@
   ([form]
      (try
       (clojure.lang.Var/pushThreadBindings {#'*within-seq* true})
-      ; no doall here so needs a loop to enforce strictness
-      (list 'clojure.core/seq (cons 'clojure.core/concat (loop [f form a []]
-                                                            (if (seq f) 
-                                                              (recur (next f) (conj a (syntax-quote* (first f))))
-                                                              a)))) 
+      ;; loop enforces strictness
+      (if (seq form)
+        (list 'clojure.core/seq (cons 'clojure.core/concat (loop [f form a []]
+                                                             (if (seq f) 
+                                                               (recur (next f) (conj a (syntax-quote* (first f))))
+                                                               a))))
+        (list 'list))
       (finally
        (clojure.lang.Var/popThreadBindings)))))
 
@@ -643,12 +645,12 @@
     , (sq-w (second form))
     (is-call? 'clojure.core/unquote-splicing form) 
     , (if *within-seq* 
-        (list* 'do (rest form)) 
+        (second form) 
         (throw (IllegalStateException. "Splice not in sequential collection"))) 
      
     (is-call? 'syntax-quote form) (sq-w :q form)
     (symbol? form) (sq-w :q (sq-sym form))
-    (vector? form) (sq-w (list 'clojure.core/vec (sq-seq form)))
+    (vector? form) (sq-w (list 'clojure.core/apply 'clojure.core/vector (sq-seq form)))
     (map? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-map 
                          (sq-seq (apply concat (seq form)))))
     (set? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-set (sq-seq form)))

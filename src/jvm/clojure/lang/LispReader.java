@@ -58,7 +58,7 @@ static final Symbol CLOJURE_SLASH = Symbol.create("clojure.core","/");
 //static Pattern classNamePat = Pattern.compile("([a-zA-Z_][\\w\\.]*)\\.");
 
 //symbol->gensymbol
-static Var GENSYM_ENV = Var.create(null);
+    static Var GENSYM_ENV = RT.var("clojure.lang.reader", "*synquote-env*");
 //sorted-map num->gensymbol
 static Var ARG_ENV = Var.create(null);
 
@@ -674,7 +674,7 @@ public static class SyntaxQuoteReader extends AFn{
 			}
 	}
 
-	static Object syntaxQuote(Object form) throws Exception{
+	public static Object syntaxQuote(Object form) throws Exception{
 		Object ret;
 		if(Compiler.isSpecial(form))
 			ret = RT.list(Compiler.QUOTE, form);

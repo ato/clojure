@@ -78,15 +78,16 @@
   	<chmod file="pom.xml" perm="ugo-w"/>
   </target>
 
-  <target name="compile-java" depends="pre-bootstrap"
+  <target name="compile-java" depends="init"
           description="Compile Java sources.">
           <javac srcdir="${jsrc}" destdir="${build}" classpath="bootstrap/stage1/" includeJavaRuntime="yes"
            debug="true" target="1.5"/>
   </target>
 
-  <target name="pre-bootstrap" depends="init">
+  <target name="pre-bootstrap" depends="compile-java">
     <java classname="clojure.lang.Compile"
-      classpath="${cljsrc}:bootstrap/clojure.jar:bootstrap/java/:bootstrap/stage1/">
+      classpath="${cljsrc}:${build}:bootstrap/stage1/">
+      <sysproperty key="clojure.reader" value="false"/>
       <sysproperty key="clojure.compile.path" value="bootstrap/stage1/"/>
       <!-- <sysproperty key="clojure.compile.warn-on-reflection" value="true"/> -->
       <arg value="clojure.core"/>
@@ -105,11 +106,12 @@
     </java>
   </target>
 
-  <target name="bootstrap-stage2" depends="compile-java"
+  <target name="bootstrap-stage2" depends="pre-bootstrap"
           description="Compile Clojure sources.">
     <java fork="true" classname="clojure.lang.Recompile"
       classpath="${build}:bootstrap/stage1:bootstrap/stage2:${cljsrc}"
           failonerror="true">
+          <sysproperty key="clojure.reader" value="true"/>
           <sysproperty key="clojure.compile.path" value="bootstrap/stage2"/>
       <arg value="clojure.core"/>
       <arg value="clojure.lang.reader"/>
@@ -131,6 +133,7 @@
     <java fork="true" classname="clojure.lang.Recompile"
       classpath="${build}:bootstrap/stage2:${cljsrc}"
           failonerror="true">
+          <sysproperty key="clojure.reader" value="true"/>
           <sysproperty key="clojure.compile.path" value="${build}"/>
       <arg value="clojure.core"/>
       <arg value="clojure.lang.reader"/>

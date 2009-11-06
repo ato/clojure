@@ -613,10 +613,10 @@
       (clojure.lang.Var/pushThreadBindings {#'*within-seq* true})
       ;; loop enforces strictness
       (if (seq form)
-        (list 'clojure.core/seq (cons 'clojure.core/concat (seq (loop [f form a []]
-                                                                  (if (seq f) 
-                                                                    (recur (next f) (conj a (syntax-quote* (first f))))
-                                                                    a)))))
+        (cons 'clojure.core/concat (loop [f form a []]
+                                       (if (seq f) 
+                                         (recur (next f) (conj a (syntax-quote* (first f))))
+                                         a)))
         (cons 'list nil))
       (finally
        (clojure.lang.Var/popThreadBindings)))))
@@ -3597,14 +3597,13 @@
   body is the expansion, calls to which may be expanded inline as if
   it were a macro. Cannot be used with variadic (&) args." 
   [name & decl]
-  (let [[pre-args [args expr]] (split-with (fn helper [item & the-rest]
-                                             (.println System/out (str "item: " item \newline
-                                                                       "rest: " the-rest))
+  (let [[pre-args [args expr]] (split-with (fn helper [item]
+                                             (.println System/out (str "item: " item))
                                              (flush)
                                              (Thread/sleep 100)
                                              (not (vector? item))) decl)]
     `(do
-       (defn ~name ~@(seq pre-args) ~args ~(apply (eval (list `fn args expr)) args))
+       (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
        (alter-meta! (var ~name) assoc :inline (fn ~args ~expr))
        (var ~name))))
 

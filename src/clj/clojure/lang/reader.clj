@@ -244,9 +244,11 @@
                 [(list sym item) rh])]
     (wrap (consume rh))))  
 
+
+(declare *synquote-env*)
 (defmethod consume ::syntax-quote [rh]
-  ((fn [[item nrh]] [(binding [clojure.core/*sq-gensyms* {}]
-                       (syntax-quote* item))
+  ((fn [[item nrh]] [(binding [*synquote-env* {}]
+                       (clojure.lang.LispReader$SyntaxQuoteReader/syntaxQuote item))
                      nrh]) (consume (advance rh))))
 
 (defmethod consume ::deref [rh]

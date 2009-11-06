@@ -4936,9 +4936,14 @@ public static Object loadFile(String file) throws Exception{
 }
 
 private static Object read(PushbackReader rdr, Object eof) throws Exception {
-  IFn reader = (IFn) READER_FN.deref();
-  return reader.invoke(rdr, eof);
-  //return clojure.reader.ClojureReader.read(rdr, eof);
+    if(Boolean.getBoolean("clojure.reader")) {
+        IFn reader = (IFn) READER_FN.deref();
+        Object o = reader.invoke(rdr, eof);
+        System.out.println("Read:" + o.toString() + "\n");
+        return o;
+    }
+    else 
+        return LispReader.read(rdr, false, eof, false);
 }
 
 public static Object load(Reader rdr) throws Exception{

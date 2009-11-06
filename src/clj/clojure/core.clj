@@ -655,10 +655,10 @@
                          (sq-seq (apply concat (seq form)))))
     (set? form) (sq-w (list 'clojure.core/apply 'clojure.core/hash-set (sq-seq form)))
     (seq? form) (sq-w (sq-seq form))
-    (keyword? form) form
-    (string? form) form
-    (instance? java.lang.Number form) form
-    (instance? Character form) form 
+    (keyword? form) (sq-w form)
+    (string? form) (sq-w form)
+    (instance? java.lang.Number form) (sq-w form)
+    (instance? Character form) (sq-w form) 
     :else (sq-w (list 'quote form))))
 
 (defmacro syntax-quote [form]

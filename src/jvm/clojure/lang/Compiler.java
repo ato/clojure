@@ -4938,9 +4938,7 @@ public static Object loadFile(String file) throws Exception{
 private static Object read(PushbackReader rdr, Object eof) throws Exception {
     if(Boolean.getBoolean("clojure.reader")) {
         IFn reader = (IFn) READER_FN.deref();
-        Object o = reader.invoke(rdr, eof);
-        System.out.println("Read:" + o.toString() + "\n");
-        return o;
+        return reader.invoke(rdr, eof);
     }
     else 
         return LispReader.read(rdr, false, eof, false);
@@ -4964,10 +4962,11 @@ public static Object load(Reader rdr, String sourcePath, String sourceName) thro
 			       LINE_BEFORE, pushbackReader.getLineNumber(),
 			       LINE_AFTER, pushbackReader.getLineNumber()
 			));
+        Object r = null;
 
 	try
 		{
-		for(Object r = read(pushbackReader, EOF); r != EOF;
+		for(r = read(pushbackReader, EOF); r != EOF;
 		    r = read(pushbackReader, EOF))
 			{
 			LINE_AFTER.set(pushbackReader.getLineNumber());
@@ -4979,6 +4978,11 @@ public static Object load(Reader rdr, String sourcePath, String sourceName) thro
 		{
 		throw new CompilerException(sourceName, e.line, e.getCause());
 		}
+        catch (Exception e) {
+            System.out.println("Failed to compile form: " + r.toString());
+            System.out.flush();
+            throw e;
+        }
 	finally
 		{
 		Var.popThreadBindings();

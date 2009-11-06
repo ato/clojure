@@ -106,13 +106,13 @@
     </java>
   </target>
 
-  <target name="bootstrap-stage2" depends="pre-bootstrap"
+  <target name="compile-clojure" depends="pre-bootstrap"
           description="Compile Clojure sources.">
     <java fork="true" classname="clojure.lang.Recompile"
       classpath="${build}:bootstrap/stage1:bootstrap/stage2:${cljsrc}"
           failonerror="true">
           <sysproperty key="clojure.reader" value="true"/>
-          <sysproperty key="clojure.compile.path" value="bootstrap/stage2"/>
+          <sysproperty key="clojure.compile.path" value="${build}"/>
       <arg value="clojure.core"/>
       <arg value="clojure.lang.reader"/>
       <arg value="clojure.lang.reader.internal"/>
@@ -127,7 +127,7 @@
       <arg value="clojure.test.tap"/> 
     </java>
   </target>
-  
+  <!-- 
   <target name="compile-clojure" depends="bootstrap-stage2"
           description="Compile Clojure sources.">
     <java fork="true" classname="clojure.lang.Recompile"
@@ -149,7 +149,7 @@
       <arg value="clojure.test.tap"/> 
     </java>
   </target>
-
+  -->
   <target name="clojure" depends="compile-clojure"
           description="Create clojure jar file.">
     <jar jarfile="${clojure_jar}" basedir="${build}">

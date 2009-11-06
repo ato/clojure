@@ -1971,11 +1971,11 @@
   "Returns a lazy sequence of the items in coll starting from the first
   item for which (pred item) returns nil."
   [pred coll]
-  (.println System/out (str "drop-while pred:" pred)) (.flush System/out)
-  (let [step (fn [pred coll]
-               (let [s (seq coll)]
-                 (if (and s (pred (first s)))
-                   (recur pred (rest s))
+  (.println System/out (str "dw: coll: " coll)) (.flush System/out)
+  (let [step (fn [p c]
+               (let [s (seq c)]
+                 (if (and s (p (first s)))
+                   (recur p (rest s))
                    s)))]
     (lazy-seq (step pred coll))))
 
@@ -1993,7 +1993,8 @@
 (defn split-with
   "Returns a vector of [(take-while pred coll) (drop-while pred coll)]"
   [pred coll]
-    [(take-while pred coll) (drop-while pred coll)])
+  (.println System/out (str "split-with: pred: " pred " coll: " coll))
+  [(take-while pred coll) (drop-while pred coll)])
 
 (defn repeat
   "Returns a lazy (infinite!, or length n if supplied) sequence of xs."
@@ -3597,11 +3598,7 @@
   body is the expansion, calls to which may be expanded inline as if
   it were a macro. Cannot be used with variadic (&) args." 
   [name & decl]
-  (let [[pre-args [args expr]] (split-with (fn helper [item]
-                                             (.println System/out (str "item: " item))
-                                             (flush)
-                                             (Thread/sleep 100)
-                                             (not (vector? item))) decl)]
+  (let [[pre-args [args expr]] (split-with (comp not vector?) decl)]
     `(do
        (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
        (alter-meta! (var ~name) assoc :inline (fn ~args ~expr))

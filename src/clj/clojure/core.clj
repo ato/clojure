@@ -657,7 +657,7 @@
     (seq? form) (sq-w (sq-seq form))
     (keyword? form) form
     (string? form) form
-    (number? form) form
+    (instance? java.lang.Number form) form
     (instance? Character form) form 
     :else (sq-w (list 'quote form))))
 

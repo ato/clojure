@@ -65,6 +65,7 @@
     <mkdir dir="${build}"/>
     <mkdir dir="bootstrap/stage1"/>
     <mkdir dir="bootstrap/stage2"/>
+    <mkdir dir="bootstrap/java-classes"/>
   	<antcall target="init-version"/>
   </target>
 
@@ -80,14 +81,14 @@
 
   <target name="compile-java" depends="init"
           description="Compile Java sources.">
-          <javac srcdir="${jsrc}" destdir="${build}" classpath="bootstrap/stage1/" includeJavaRuntime="yes"
+          <javac srcdir="${jsrc}" destdir="bootstrap/java-classes" includeJavaRuntime="yes"
            debug="true" target="1.5"/>
   </target>
 
-  <target name="pre-bootstrap" depends="compile-java">
+  <target name="pre-bootstrap" depends="compile-java" unless="skip-pre-bootstrap">
     <java classname="clojure.lang.Compile"
-      classpath="${cljsrc}:${build}:bootstrap/clojure.jar:bootstrap/stage1/">
-      <sysproperty key="clojure.reader" value="false"/>
+      classpath="${cljsrc}:bootstrap/java-classes:bootstrap/clojure.jar:bootstrap/stage1/">
+      <sysproperty key="clojure.reader" value="${clojure.reader}"/> 
       <sysproperty key="clojure.compile.path" value="bootstrap/stage1/"/>
       <!-- <sysproperty key="clojure.compile.warn-on-reflection" value="true"/> -->
       <arg value="clojure.core"/>
@@ -106,16 +107,21 @@
     </java>
   </target>
 
-  <target name="compile-clojure" depends="pre-bootstrap"
+  <target name="unzip-bootstrap-stage1" depends="compile-java" if="skip-pre-bootstrap">
+    <unzip src="bootstrap/clojure.jar" dest="bootstrap/stage1" />
+  </target>
+
+  <target name="bootstrap-stage2" depends="pre-bootstrap,unzip-bootstrap-stage1"
           description="Compile Clojure sources.">
     <java fork="true" classname="clojure.lang.Recompile"
-      classpath="${build}:bootstrap/stage1:bootstrap/stage2:${cljsrc}"
+      classpath="bootstrap/java-classes:bootstrap/stage1:bootstrap/stage2:${cljsrc}"
           failonerror="true">
-          <sysproperty key="clojure.reader" value="true"/>
-          <sysproperty key="clojure.compile.path" value="${build}"/>
+      <sysproperty key="clojure.reader" value="true"/>
+      <sysproperty key="clojure.compile.path" value="bootstrap/stage2"/>
       <arg value="clojure.core"/>
       <arg value="clojure.lang.reader"/>
       <arg value="clojure.lang.reader.internal"/>
+      <arg value="clojure.main"/>
       <arg value="clojure.set"/>
       <arg value="clojure.xml"/>
       <arg value="clojure.zip"/>
@@ -126,18 +132,25 @@
       <arg value="clojure.test"/>
       <arg value="clojure.test.tap"/> 
     </java>
-  </target>
-  <!-- 
+    <copy todir="bootstrap/stage2">
+      <fileset dir="bootstrap/java-classes"/>
+    </copy>
+   </target>
+
+  <!-- at this point stage2 is a fully-fledged Clojure with the new reader, but lets
+       recompile with it just to be sure it works okay.
+   -->
   <target name="compile-clojure" depends="bootstrap-stage2"
           description="Compile Clojure sources.">
     <java fork="true" classname="clojure.lang.Recompile"
-      classpath="${build}:bootstrap/stage2:${cljsrc}"
+      classpath="bootstrap/stage2:${cljsrc}:${build}"
           failonerror="true">
           <sysproperty key="clojure.reader" value="true"/>
           <sysproperty key="clojure.compile.path" value="${build}"/>
       <arg value="clojure.core"/>
       <arg value="clojure.lang.reader"/>
       <arg value="clojure.lang.reader.internal"/>
+      <arg value="clojure.main"/>
       <arg value="clojure.set"/>
       <arg value="clojure.xml"/>
       <arg value="clojure.zip"/>
@@ -148,8 +161,11 @@
       <arg value="clojure.test"/>
       <arg value="clojure.test.tap"/> 
     </java>
+    <copy todir="${build}">
+      <fileset dir="bootstrap/java-classes"/>
+    </copy>
   </target>
-  -->
+
   <target name="clojure" depends="compile-clojure"
           description="Create clojure jar file.">
     <jar jarfile="${clojure_jar}" basedir="${build}">
@@ -214,6 +230,7 @@
     <delete dir="${build}"/>
     <delete dir="bootstrap/stage1"/>
     <delete dir="bootstrap/stage2"/>
+    <delete dir="bootstrap/java-classes"/>
     <delete file="pom.xml"/>
   </target>
 

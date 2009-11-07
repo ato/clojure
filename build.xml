@@ -86,7 +86,7 @@
 
   <target name="pre-bootstrap" depends="compile-java">
     <java classname="clojure.lang.Compile"
-      classpath="${cljsrc}:${build}:bootstrap/stage1/">
+      classpath="${cljsrc}:${build}:bootstrap/clojure.jar:bootstrap/stage1/">
       <sysproperty key="clojure.reader" value="false"/>
       <sysproperty key="clojure.compile.path" value="bootstrap/stage1/"/>
       <!-- <sysproperty key="clojure.compile.warn-on-reflection" value="true"/> -->

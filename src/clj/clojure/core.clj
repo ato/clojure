@@ -1971,7 +1971,6 @@
   "Returns a lazy sequence of the items in coll starting from the first
   item for which (pred item) returns nil."
   [pred coll]
-  (.println System/out (str "dw: coll: " coll)) (.flush System/out)
   (let [step (fn [p c]
                (let [s (seq c)]
                  (if (and s (p (first s)))
@@ -3598,6 +3597,7 @@
   body is the expansion, calls to which may be expanded inline as if
   it were a macro. Cannot be used with variadic (&) args." 
   [name & decl]
+  (.println System/out (str "definline:" name decl)) (.flush System/out)
   (let [[pre-args [args expr]] (split-with (comp not vector?) decl)]
     `(do
        (defn ~name ~@pre-args ~args ~(apply (eval (list `fn args expr)) args))
